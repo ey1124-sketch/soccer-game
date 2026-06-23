@@ -66,9 +66,9 @@ function bucketFromKey(key) {
   return { k: Number(m[1]), o: Number(m[2]) };
 }
 
-function humanCell(key) {
+function humanCell(key, opponentName) {
   const { k, o } = bucketFromKey(key);
-  return `한국 ${KOREA_LABELS[k]} : 상대 ${OPP_LABELS[o]}`;
+  return `한국 ${KOREA_LABELS[k]} : ${opponentName || "상대"} ${OPP_LABELS[o]}`;
 }
 
 function emptyCells() {
@@ -667,7 +667,7 @@ export default function App() {
                 <div style={{ width: 28 }} />
                 <div className="flex-1 flex items-center justify-center gap-1 text-sm font-bold text-gray-600">
                   <FlagImg name={game.opponent} className="h-4 w-auto rounded-sm" />
-                  <span>{game.opponent} 득점 →</span>
+                  <span>{game.opponent} 득점</span>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -792,7 +792,9 @@ export default function App() {
 
       {nameModal && (
         <Overlay>
-          <p className="text-sm font-semibold text-gray-700 mb-2">{humanCell(nameModal.cellKey)} 칸에 참여</p>
+          <p className="text-sm font-semibold text-gray-700 mb-2">
+            {humanCell(nameModal.cellKey, game?.opponent)} 칸에 참여
+          </p>
           <input
             autoFocus
             value={nameInput}
@@ -816,9 +818,9 @@ export default function App() {
       {moveConfirm && (
         <Overlay>
           <p className="text-sm text-gray-700 mb-4">
-            이미 <b>{humanCell(moveConfirm.fromKey)}</b> 칸에 참여하셨어요.
+            이미 <b>{humanCell(moveConfirm.fromKey, game?.opponent)}</b> 칸에 참여하셨어요.
             <br />
-            <b>{humanCell(moveConfirm.toKey)}</b> 칸으로 옮기시겠어요?
+            <b>{humanCell(moveConfirm.toKey, game?.opponent)}</b> 칸으로 옮기시겠어요?
           </p>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setMoveConfirm(null)} className="px-3 py-2 text-sm rounded-lg border">
@@ -834,7 +836,7 @@ export default function App() {
       {withdrawConfirm && (
         <Overlay>
           <p className="text-sm text-gray-700 mb-4">
-            <b>{humanCell(withdrawConfirm.cellKey)}</b> 참여를 취소하시겠어요?
+            <b>{humanCell(withdrawConfirm.cellKey, game?.opponent)}</b> 참여를 취소하시겠어요?
           </p>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setWithdrawConfirm(null)} className="px-3 py-2 text-sm rounded-lg border">
