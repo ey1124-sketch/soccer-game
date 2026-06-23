@@ -674,7 +674,7 @@ export default function App() {
                 <div className="flex flex-col items-center justify-center gap-1" style={{ width: 22 }}>
                   <FlagImg name="한국" className="h-4 w-auto rounded-sm" />
                   <div className="text-sm font-bold text-gray-600" style={{ writingMode: "vertical-rl" }}>
-                    한국 득점 ↓
+                    한국 득점
                   </div>
                 </div>
                 <div className="flex-1 grid gap-1" style={{ gridTemplateColumns: "24px repeat(4, 1fr)" }}>
