@@ -4,6 +4,7 @@ import { db } from "./firebase";
 
 const KOREA_LABELS = ["0", "1", "2", "3+"];
 const OPP_LABELS = ["0", "1", "2", "3+"];
+const ADMIN_PIN = "2026";
 
 const KOREA_INFO = { code: "kr", emoji: "🇰🇷" };
 
@@ -198,6 +199,8 @@ export default function App() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinInput, setPinInput] = useState("");
 
   const hasLoadedOnceRef = useRef(false);
   const prevLockedRef = useRef(false);
@@ -445,12 +448,32 @@ export default function App() {
     setShowConfetti(false);
   }
 
+  function toggleAdminMode() {
+    if (isAdminMode) {
+      setIsAdminMode(false);
+      return;
+    }
+    setPinInput("");
+    setPinModalOpen(true);
+  }
+
+  function submitPin() {
+    if (pinInput.trim() === ADMIN_PIN) {
+      setIsAdminMode(true);
+      setPinModalOpen(false);
+      setPinInput("");
+    } else {
+      setErrorMsg("PIN이 올바르지 않아요.");
+      setPinInput("");
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-white p-3 sm:p-6">
       <div className="max-w-md mx-auto">
         <div className="flex justify-end mb-1">
           <button
-            onClick={() => setIsAdminMode((v) => !v)}
+            onClick={toggleAdminMode}
             className="text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full px-2 py-1"
           >
             ⚙️ {isAdminMode ? "보기 모드로 전환" : "운영자 모드로 전환"}
@@ -762,6 +785,31 @@ export default function App() {
             </button>
             <button onClick={confirmWithdraw} className="px-3 py-2 text-sm rounded-lg bg-red-600 text-white">
               참여 취소
+            </button>
+          </div>
+        </Overlay>
+      )}
+
+      {pinModalOpen && (
+        <Overlay>
+          <p className="text-sm font-semibold text-gray-700 mb-2">운영자 PIN을 입력해주세요</p>
+          <input
+            type="password"
+            autoFocus
+            inputMode="numeric"
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitPin()}
+            placeholder="PIN"
+            maxLength={10}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-400"
+          />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setPinModalOpen(false)} className="px-3 py-2 text-sm rounded-lg border">
+              취소
+            </button>
+            <button onClick={submitPin} className="px-3 py-2 text-sm rounded-lg bg-green-600 text-white">
+              확인
             </button>
           </div>
         </Overlay>
