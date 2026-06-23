@@ -90,7 +90,7 @@ function findNameCellKey(cells, name) {
 
 function normalizeGame(g) {
   if (!g) return null;
-  return { ...g, cells: { ...emptyCells(), ...(g.cells || {}) } };
+  return { ...g, cells: { ...emptyCells(), ...(g.cells || {}) }, bettingClosed: !!g.bettingClosed };
 }
 
 function formatDate(ts) {
@@ -201,6 +201,7 @@ export default function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [pinModalOpen, setPinModalOpen] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [clearHistoryConfirm, setClearHistoryConfirm] = useState(false);
 
   const hasLoadedOnceRef = useRef(false);
   const prevLockedRef = useRef(false);
@@ -292,6 +293,7 @@ export default function App() {
         cells: emptyCells(),
         result: null,
         locked: false,
+        bettingClosed: false,
         lastWinners: null,
         createdAt: Date.now(),
       });
@@ -308,7 +310,7 @@ export default function App() {
   }, [opponentInput]);
 
   function openNameModal(cellKey) {
-    if (!game || game.locked || busy) return;
+    if (!game || game.locked || game.bettingClosed || busy) return;
     const existingKeyForMe = myName ? findNameCellKey(game.cells, myName) : null;
     if (existingKeyForMe === cellKey) {
       setWithdrawConfirm({ cellKey, name: myName });
@@ -332,7 +334,7 @@ export default function App() {
     runTransaction(ref(db, "current-game"), (latest) => {
       abortReason = null;
       moveInfo = null;
-      if (!latest || latest.locked) {
+      if (!latest || latest.locked || latest.bettingClosed) {
         abortReason = "locked";
         return;
       }
@@ -355,7 +357,7 @@ export default function App() {
         } else if (abortReason === "move") {
           setMoveConfirm(moveInfo);
         } else if (abortReason === "locked") {
-          setErrorMsg("이미 결과가 확정된 게임이에요.");
+          setErrorMsg("지금은 참여 등록을 받지 않아요.");
         }
       })
       .catch(() => setErrorMsg("저장 중 문제가 발생했어요. 다시 시도해주세요."))
@@ -369,7 +371,7 @@ export default function App() {
     let abortReason = null;
     runTransaction(ref(db, "current-game"), (latest) => {
       abortReason = null;
-      if (!latest || latest.locked) {
+      if (!latest || latest.locked || latest.bettingClosed) {
         abortReason = "locked";
         return;
       }
@@ -385,7 +387,7 @@ export default function App() {
           setMyName(name);
           localStorage.setItem("my-name", name);
         } else if (abortReason === "locked") {
-          setErrorMsg("이미 결과가 확정된 게임이에요.");
+          setErrorMsg("지금은 참여 등록을 받지 않아요.");
         }
       })
       .catch(() => setErrorMsg("저장 중 문제가 발생했어요. 다시 시도해주세요."))
@@ -397,11 +399,29 @@ export default function App() {
     setWithdrawConfirm(null);
     setBusy(true);
     runTransaction(ref(db, "current-game"), (latest) => {
-      if (!latest || latest.locked) return;
+      if (!latest || latest.locked || latest.bettingClosed) return;
       const cells = { ...emptyCells(), ...(latest.cells || {}) };
       cells[cellKey] = (cells[cellKey] || []).filter((n) => n !== name);
       return { ...latest, cells };
     })
+      .catch(() => setErrorMsg("저장 중 문제가 발생했어요. 다시 시도해주세요."))
+      .finally(() => setBusy(false));
+  }
+
+  function closeBetting() {
+    setBusy(true);
+    runTransaction(ref(db, "current-game"), (latest) => {
+      if (!latest || latest.locked || latest.bettingClosed) return;
+      return { ...latest, bettingClosed: true };
+    })
+      .catch(() => setErrorMsg("저장 중 문제가 발생했어요. 다시 시도해주세요."))
+      .finally(() => setBusy(false));
+  }
+
+  function clearHistory() {
+    setClearHistoryConfirm(false);
+    setBusy(true);
+    set(ref(db, "game-history"), null)
       .catch(() => setErrorMsg("저장 중 문제가 발생했어요. 다시 시도해주세요."))
       .finally(() => setBusy(false));
   }
@@ -499,6 +519,11 @@ export default function App() {
               경기 종료
             </span>
           )}
+          {!game?.locked && game?.bettingClosed && (
+            <span className="inline-block mt-1 text-xs font-medium text-white bg-orange-500 rounded-full px-2 py-0.5">
+              베팅 마감
+            </span>
+          )}
           <p className="text-[11px] text-gray-400 mt-1">
             🔗 이 게임판은 같은 링크로 접속하는 모든 사람에게 공유됩니다
           </p>
@@ -531,6 +556,28 @@ export default function App() {
                 새 게임 시작
               </button>
             </div>
+          </div>
+        )}
+
+        {isAdminMode && game && !game.locked && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 mb-4 flex items-center justify-between">
+            <div className="text-sm font-semibold text-gray-700">
+              베팅 상태:{" "}
+              {game.bettingClosed ? (
+                <span className="text-red-600">마감됨</span>
+              ) : (
+                <span className="text-green-600">진행 중</span>
+              )}
+            </div>
+            {!game.bettingClosed && (
+              <button
+                onClick={closeBetting}
+                disabled={busy}
+                className="bg-orange-500 text-white text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50"
+              >
+                베팅 마감
+              </button>
+            )}
           </div>
         )}
 
@@ -654,7 +701,7 @@ export default function App() {
                         return (
                           <button
                             key={oi}
-                            disabled={game.locked || busy}
+                            disabled={game.locked || game.bettingClosed || busy}
                             onClick={() => openNameModal(key)}
                             className={[
                               "min-h-[52px] rounded-lg border text-[11px] leading-tight p-1 break-words transition",
@@ -663,7 +710,7 @@ export default function App() {
                                 : isMine
                                 ? "bg-blue-50 border-blue-400 ring-1 ring-blue-400"
                                 : "bg-gray-50 border-gray-200",
-                              game.locked ? "cursor-not-allowed opacity-90" : "active:scale-95",
+                              game.locked || game.bettingClosed ? "cursor-not-allowed opacity-90" : "active:scale-95",
                             ].join(" ")}
                           >
                             {names.length === 0 ? (
@@ -702,18 +749,28 @@ export default function App() {
               <span>{showHistory ? "▲" : "▼"}</span>
             </button>
             {showHistory && (
-              <ul className="mt-2 space-y-2 text-sm text-gray-600">
-                {history.map((h, i) => (
-                  <li key={i} className="border-t border-gray-100 pt-2">
-                    <div className="font-medium text-gray-700">
-                      한국 vs {h.opponent} — {h.finalScore}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      승자: {h.winners?.length ? h.winners.join(", ") : "없음"} · {formatDate(h.finishedAt)}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="mt-2 space-y-2 text-sm text-gray-600">
+                  {history.map((h, i) => (
+                    <li key={i} className="border-t border-gray-100 pt-2">
+                      <div className="font-medium text-gray-700">
+                        한국 vs {h.opponent} — {h.finalScore}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        승자: {h.winners?.length ? h.winners.join(", ") : "없음"} · {formatDate(h.finishedAt)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {isAdminMode && (
+                  <button
+                    onClick={() => setClearHistoryConfirm(true)}
+                    className="mt-3 w-full text-xs text-red-600 font-medium border border-red-200 rounded-lg py-2 hover:bg-red-50"
+                  >
+                    기록 전체 삭제
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -785,6 +842,22 @@ export default function App() {
             </button>
             <button onClick={confirmWithdraw} className="px-3 py-2 text-sm rounded-lg bg-red-600 text-white">
               참여 취소
+            </button>
+          </div>
+        </Overlay>
+      )}
+
+      {clearHistoryConfirm && (
+        <Overlay>
+          <p className="text-sm text-gray-700 mb-4">
+            지난 경기 기록을 모두 삭제하시겠어요? 이 작업은 되돌릴 수 없습니다.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setClearHistoryConfirm(false)} className="px-3 py-2 text-sm rounded-lg border">
+              취소
+            </button>
+            <button onClick={clearHistory} className="px-3 py-2 text-sm rounded-lg bg-red-600 text-white">
+              삭제
             </button>
           </div>
         </Overlay>
